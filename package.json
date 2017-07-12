@@ -1,0 +1,14 @@
+{
+  "name": "notify-me",
+  "version": "1.0.0",
+  "description": "用slack通知指定人員",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "ikaritw@gmail.com",
+  "license": "ISC",
+  "dependencies": {
+    "slack-node": "^0.1.8"
+  }
+}
