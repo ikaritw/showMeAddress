@@ -40,7 +40,7 @@ function syncTime(callback) {
 			if (err) {
 				// node couldn't execute the command
 				console.error(err);
-				return;
+				//return;
 			}
 
 			// the *entire* stdout and stderr (buffered)
@@ -95,8 +95,10 @@ function callSlack() {
 
 	//取得系統資訊
 	var os = require('os');
+	var moment = require('moment');
 	var username = os.hostname();
-	var text = getip(os).join(";");
+	var uptime = moment.duration(os.uptime(),'seconds').humanize();
+	var text = "up for " + uptime + "," + getip(os).join(";");
 
 	//發送slack
 	var Slack = require('slack-node');
