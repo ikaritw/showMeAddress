@@ -31,7 +31,7 @@ function syncTime(callback) {
   	}]
   }
   */
-  var timezonedbURL = "https://api.timezonedb.com/v2/list-time-zone?key=Q7YRX0AV3030&format=json&country=TW";
+  var timezonedbURL = "http://api.timezonedb.com/v2/list-time-zone?key=Q7YRX0AV3030&format=json&country=TW";
   request(timezonedbURL, function(error, response, body) {
     if (error) {
       logger.error(error);
