@@ -1,7 +1,9 @@
 /* jshint eqeqeq:false,eqnull:true,node:true */
 
-var winston = require('winston');
-var logger = new(winston.Logger)({
+const request = require('request');
+const moment = require('moment');
+const winston = require('winston');
+let logger = new(winston.Logger)({
   transports: [
     new(winston.transports.Console)(),
     new(winston.transports.File)({
@@ -12,8 +14,7 @@ var logger = new(winston.Logger)({
 
 function syncTime(callback) {
   callback = callback || function() {};
-  const request = require('request');
-  const moment = require('moment');
+
   const {
     exec
   } = require('child_process');
@@ -31,21 +32,27 @@ function syncTime(callback) {
   	}]
   }
   */
-  var timezonedbURL = "http://api.timezonedb.com/v2/list-time-zone?key=Q7YRX0AV3030&format=json&country=TW";
+  const timezonedbURL = "http://api.timezonedb.com/v2/list-time-zone?key=Q7YRX0AV3030&format=json&country=TW";
   request(timezonedbURL, function(error, response, body) {
     if (error) {
       logger.error(error);
-      return;
+      //return;
     }
-
     logger.info(body);
-    var info = JSON.parse(body);
-    var zone = info.zones[0];
-    var currentTime = new Date((zone.timestamp - zone.gmtOffset) * 1000);
-    var currentMoment = moment(currentTime);
+
+    let currentMoment = moment(new Date());
+    try {
+      var info = JSON.parse(body);
+      var zone = info.zones[0];
+      var timezonedb_time = new Date((zone.timestamp - zone.gmtOffset) * 1000);
+      currentMoment = moment(timezonedb_time);
+    } catch (ex) {
+      logger.error(ex);
+    }
 
     var cmd = "date --set '" + currentMoment.format() + "'";
     logger.info(cmd);
+
     exec(cmd, function(err, stdout, stderr) {
       if (err) {
         // node couldn't execute the command
@@ -54,8 +61,13 @@ function syncTime(callback) {
       }
 
       // the *entire* stdout and stderr (buffered)
-      logger.info('stdout:' + stdout);
-      logger.error('stderr:' + stderr);
+      if (stdout) {
+        logger.info('stdout:' + stdout);
+      }
+      if (stderr) {
+        logger.error('stderr:' + stderr);
+      }
+
       if (callback) {
         callback(currentMoment);
       }
@@ -82,24 +94,26 @@ function getip(os) {
       if (alias >= 1) {
         // this single interface has multiple ipv4 addresses
         ipAddress.push(ifname + ':' + alias + ":" + iface.address);
-      }
-      else {
+      } else {
         // this interface has only one ipv4 adress
         ipAddress.push(ifname + ":" + iface.address);
       }
       ++alias;
     });
   });
+  logger.info(ipAddress);
+
   return ipAddress;
 }
 
-function callSlack() {
+function callSlack(currentMoment) {
   //取得webhookurl資訊
+  logger.info("callSlack:" + currentMoment);
+
   var webhookKey;
   if (process.argv.length > 2) {
     webhookKey = process.argv[2]; // XXX/YYY/ZZZ
-  }
-  else {
+  } else {
     var config = require('./config.json');
     webhookKey = config.webhookKey;
   }
@@ -107,7 +121,6 @@ function callSlack() {
 
   //取得系統資訊
   var os = require('os');
-  var moment = require('moment');
   var username = os.hostname();
   var uptime = moment.duration(os.uptime(), 'seconds').humanize();
   var text = "up for " + uptime + "," + getip(os).join(";");
@@ -128,10 +141,42 @@ function callSlack() {
   });
 }
 
-function main() {
-  syncTime(function() {
-    callSlack();
+function checkInternet(cb) {
+  require('dns').lookup('google.com', function(err) {
+    if (err && err.code == "ENOTFOUND") {
+      cb(false);
+    } else {
+      cb(true);
+    }
   });
+}
+
+const COUNT_MAX = 5;
+let checkCount = 0;
+let checkCount_int = -1;
+
+function main() {
+
+  checkCount_int = setInterval(function() {
+    checkCount += 1;
+    logger.info("checkCount:" + checkCount);
+
+    checkInternet(function(isConnected) {
+      logger.info("checkInternet:" + isConnected);
+
+      if (isConnected || checkCount > COUNT_MAX) {
+        logger.info("clear Interval");
+        clearInterval(checkCount_int);
+        checkCount_int = -1;
+      }
+
+      if (isConnected) {
+        syncTime(function(currentMoment) {
+          callSlack(currentMoment);
+        });
+      }
+    });
+  }, 5 * 1000);
 }
 
 main();
