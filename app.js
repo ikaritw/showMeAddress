@@ -3,9 +3,21 @@
 const request = require('request');
 const moment = require('moment');
 const winston = require('winston');
+let config = winston.config;
 let logger = new(winston.Logger)({
   transports: [
-    new(winston.transports.Console)(),
+    //new(winston.transports.Console)(),
+    new(winston.transports.Console)({
+      timestamp: function() {
+        return moment().format('YYYY/MM/DD HH:mm:ss');
+      },
+      formatter: function(options) {
+        // - Return string will be passed to logger.
+        // - Optionally, use options.colorize(options.level, <string>) to
+        //   colorize output based on the log level.
+        return options.timestamp() + ' ' + config.colorize(options.level, options.level.toUpperCase()) + ' ' + (options.message || '') + (options.meta && Object.keys(options.meta).length ? '\n\t' + JSON.stringify(options.meta) : '');
+      }
+    }),
     new(winston.transports.File)({
       filename: require('path').resolve(__dirname, 'logger.log')
     })
@@ -51,7 +63,7 @@ function syncTime(callback) {
     }
 
     var cmd = "date --set '" + currentMoment.format() + "'";
-    logger.info(cmd);
+    logger.info("cmd:" + cmd);
 
     exec(cmd, function(err, stdout, stderr) {
       if (err) {
@@ -110,32 +122,36 @@ function callSlack(currentMoment) {
   //取得webhookurl資訊
   logger.info("callSlack:" + currentMoment);
 
-  var webhookKey;
+  let webhookKey;
+  let channel;
   if (process.argv.length > 2) {
     webhookKey = process.argv[2]; // XXX/YYY/ZZZ
+    channel = process.argv[3]; // @WWWW
   } else {
-    var config = require('./config.json');
-    webhookKey = config.webhookKey;
+    const config = require('./config.json');
+    let SLACK = config.slack;
+    webhookKey = SLACK.webhookKey;
+    channel = SLACK.channel;
   }
-  var webhookUri = "https://hooks.slack.com/services/" + webhookKey;
+  let webhookUri = "https://hooks.slack.com/services/" + webhookKey;
 
   //取得系統資訊
-  var os = require('os');
-  var username = os.hostname();
-  var uptime = moment.duration(os.uptime(), 'seconds').humanize();
-  var text = "up for " + uptime + "," + getip(os).join(";");
+  let os = require('os');
+  let uptime = moment.duration(os.uptime(), 'seconds').humanize();
+  let text = "up for " + uptime + "," + getip(os).join(";");
+
+  //發送slack
+  const Slack = require('slack-node');
+  let slack = new Slack();
+  slack.setWebhook(webhookUri);
 
   //Send Message Payload
-  var payload = {
-    channel: "@jazz",
-    username: username,
+  let payload = {
+    channel: channel,
+    username: os.hostname(),
     text: text
   };
 
-  //發送slack
-  var Slack = require('slack-node');
-  var slack = new Slack();
-  slack.setWebhook(webhookUri);
   slack.webhook(payload, function(err, response) {
     logger.info(response);
   });

@@ -1,3 +1,6 @@
 {
-	"webhookKey": "XXXX/YYYY/ZZZZ"
+	"slack": {
+		"webhookKey": "XXXX/YYYY/ZZZZ",
+		"channel": "@WWWW"
+	}
 }
