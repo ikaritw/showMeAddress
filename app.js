@@ -1,5 +1,5 @@
 /* jshint eqeqeq:false,eqnull:true,node:true */
-
+const Config = require('./config.json');
 const request = require('request');
 const moment = require('moment');
 const winston = require('winston');
@@ -8,10 +8,10 @@ let logger = new(winston.Logger)({
   transports: [
     //new(winston.transports.Console)(),
     new(winston.transports.Console)({
-      timestamp: function() {
+      timestamp: function () {
         return moment().format('YYYY/MM/DD HH:mm:ss');
       },
-      formatter: function(options) {
+      formatter: function (options) {
         // - Return string will be passed to logger.
         // - Optionally, use options.colorize(options.level, <string>) to
         //   colorize output based on the log level.
@@ -25,7 +25,7 @@ let logger = new(winston.Logger)({
 });
 
 function syncTime(callback) {
-  callback = callback || function() {};
+  callback = callback || function () {};
 
   const {
     exec
@@ -44,8 +44,8 @@ function syncTime(callback) {
   	}]
   }
   */
-  const timezonedbURL = "http://api.timezonedb.com/v2/list-time-zone?key=Q7YRX0AV3030&format=json&country=TW";
-  request(timezonedbURL, function(error, response, body) {
+  const timezonedbURL = "http://api.timezonedb.com/v2/list-time-zone?key=" + Config.timezonedb.key + "&format=json&country=TW";
+  request(timezonedbURL, function (error, response, body) {
     if (error) {
       logger.error(error);
       //return;
@@ -62,28 +62,34 @@ function syncTime(callback) {
       logger.error(ex);
     }
 
-    var cmd = "date --set '" + currentMoment.format() + "'";
-    logger.info("cmd:" + cmd);
+    if (process.platform == "linux") {
+      var cmd = "date --set '" + currentMoment.format() + "'";
+      logger.info("cmd:" + cmd);
+      exec(cmd, function (err, stdout, stderr) {
+        if (err) {
+          // node couldn't execute the command
+          logger.error(err);
+          //return;
+        }
 
-    exec(cmd, function(err, stdout, stderr) {
-      if (err) {
-        // node couldn't execute the command
-        logger.error(err);
-        //return;
-      }
+        // the *entire* stdout and stderr (buffered)
+        if (stdout) {
+          logger.info('stdout:' + stdout);
+        }
 
-      // the *entire* stdout and stderr (buffered)
-      if (stdout) {
-        logger.info('stdout:' + stdout);
-      }
-      if (stderr) {
-        logger.error('stderr:' + stderr);
-      }
+        if (stderr) {
+          logger.error('stderr:' + stderr);
+        }
 
+        if (callback) {
+          callback(currentMoment);
+        }
+      });
+    } else {
       if (callback) {
         callback(currentMoment);
       }
-    });
+    }
   });
 }
 
@@ -95,9 +101,9 @@ function syncTime(callback) {
 function getip(os) {
   var ifaces = os.networkInterfaces();
   var ipAddress = [];
-  Object.keys(ifaces).forEach(function(ifname) {
+  Object.keys(ifaces).forEach(function (ifname) {
     var alias = 0;
-    ifaces[ifname].forEach(function(iface) {
+    ifaces[ifname].forEach(function (iface) {
       if ('IPv4' !== iface.family || iface.internal !== false) {
         // skip over internal (i.e. 127.0.0.1) and non-ipv4 addresses
         return;
@@ -128,8 +134,7 @@ function callSlack(currentMoment) {
     webhookKey = process.argv[2]; // XXX/YYY/ZZZ
     channel = process.argv[3]; // @WWWW
   } else {
-    const config = require('./config.json');
-    let SLACK = config.slack;
+    let SLACK = Config.slack;
     webhookKey = SLACK.webhookKey;
     channel = SLACK.channel;
   }
@@ -152,13 +157,13 @@ function callSlack(currentMoment) {
     text: text
   };
 
-  slack.webhook(payload, function(err, response) {
+  slack.webhook(payload, function (err, response) {
     logger.info(response);
   });
 }
 
 function checkInternet(cb) {
-  require('dns').lookup('google.com', function(err) {
+  require('dns').lookup('google.com', function (err) {
     if (err && err.code == "ENOTFOUND") {
       cb(false);
     } else {
@@ -173,11 +178,11 @@ let checkCount_int = -1;
 
 function main() {
 
-  checkCount_int = setInterval(function() {
+  checkCount_int = setInterval(function () {
     checkCount += 1;
     logger.info("checkCount:" + checkCount);
 
-    checkInternet(function(isConnected) {
+    checkInternet(function (isConnected) {
       logger.info("checkInternet:" + isConnected);
 
       if (isConnected || checkCount > COUNT_MAX) {
@@ -187,7 +192,7 @@ function main() {
       }
 
       if (isConnected) {
-        syncTime(function(currentMoment) {
+        syncTime(function (currentMoment) {
           callSlack(currentMoment);
         });
       }
