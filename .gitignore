@@ -2,3 +2,4 @@ node_modules/
 test/
 config.json
 logger.log
+package-lock.json
