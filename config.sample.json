@@ -2,5 +2,8 @@
 	"slack": {
 		"webhookKey": "XXXX/YYYY/ZZZZ",
 		"channel": "@WWWW"
+	},
+	"timezonedb": {
+		"key": "XXXXXXXXXX"
 	}
 }
